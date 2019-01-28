@@ -1,12 +1,23 @@
 import requests
 import json
 import argparse 
+import time
+
 if __name__ == '__main__': # Initialize the parser 
 
     parser = argparse.ArgumentParser( description="SE Power consumption" )
     parser.add_argument('-u','--user', help="Password")
     parser.add_argument('-p','--password', help="Password")
+    parser.add_argument('-d','--date', help="date 1990-01-31")
     arguments = parser.parse_args()
+
+    pattern = '%Y-%m-%d %H:%M:%S'
+
+    #x = time.strptime(arguments.date + " 00:00:00", pattern)
+
+    start_time = str(int(time.mktime(time.strptime(arguments.date + " 00:00:00", pattern)))*1000)
+    stop_time = str((int(time.mktime(time.strptime(arguments.date + " 00:00:00", pattern)) )+60*60*24)*1000)
+
 
     with requests.Session() as s:
         s.get('http://webtools3.se.dk')
@@ -37,10 +48,10 @@ if __name__ == '__main__': # Initialize the parser
                             to_readout.append(data)
 
         payload = {'itemCategory': 'SonWinMeter', 
-                   'start': '1548115200000', 
-                   'end': '1548201599000'} 
+                   'start': start_time, 
+                   'end': stop_time} 
 
-        data_out = []
+        data_out = {}
         for count, data_set in enumerate(to_readout):
             payload['itemId'] = data_set.get('id')
             x=0
@@ -50,15 +61,15 @@ if __name__ == '__main__': # Initialize the parser
                 payload['series['+ str(x) + '][prescaleUnitId]'] = 'kilo@energy_watt'
                 payload['series['+ str(x) + '][zoomLevelId]'] = 'day_by_hours'
                 x +=1
-                data_out.append(kl)
+                data_out[key] = kl
 
         l = s.post("http://webtools3.se.dk/wts/seriesData", data=payload,headers={"Session-Id":sessionx})
         mm = json.loads(l.text)
         for item,data_in in zip(data_out,mm):
-            item['total'] = data_in['total']
-            item['average'] = data_in['average']
+            data_out[item]['total'] = data_in['total']
+            data_out[item]['average'] = data_in['average']
             data_usage = {}
             for bn in data_in['datapoints']:
                 data_usage[bn['end']] = bn['value']
-            item['data'] = data_usage
+            data_out[item]['data'] = data_usage
         print(json.dumps(data_out))
